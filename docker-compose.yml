@@ -1,0 +1,68 @@
+version: "3"
+
+services:
+  redis:
+    image: redis
+
+
+  db:
+    image: postgis/postgis:latest
+    volumes:
+      - ./.db-data:/var/lib/postgres/data
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
+      - PORT=5432
+
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: poetry run python manage.py runserver 0.0.0.0:8000
+    restart: always
+    volumes:
+      - ./backend:/usr/src/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+    env_file:
+      - ./backend/.env
+    environment:
+      - DEBUG=1
+      - GOOGLE_APPLICATION_CREDENTIALS=/usr/src/app/firebase-admin.json
+
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    command: npm start
+    restart: always
+    volumes:
+      - ./frontend:/usr/src/frontend
+    ports:
+      - "3000:3000"
+    stdin_open: true
+    depends_on:
+      - backend
+
+
+  nginx:
+    image: nginx:latest
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./web:/etc/nginx/templates:ro
+      - ./backend/staticfiles:/staticfiles
+      - ./backend/mediafiles:/mediafiles
+    depends_on:
+      - backend
+
+volumes:
+  db:
